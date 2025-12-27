@@ -1,74 +1,176 @@
 /**
- * OpenAI 接口封装 - Deno Deploy 版本
- * 包含深度伪装 (Browser Impersonation)
+ * Universal LLM Proxy - Deno Deploy
+ * 支持 TheOldLLM 的所有模型 (OpenAI, Anthropic, DeepSeek, Gemini, xAI, etc.)
  */
 
 // === 配置区域 ===
 const UPSTREAM_ORIGIN = "https://theoldllm.vercel.app";
-// 默认回退 Token (当客户端未提供时使用)
+const DEFAULT_MODEL = "ent-gpt-4o"; // 默认模型
+
+// 硬编码 Token (来自你的抓包)
+// 建议在客户端请求 Header 中传入 Authorization: Bearer ... 以覆盖此值
 const FALLBACK_TOKEN = "Bearer ";
 
-const DEFAULT_MODEL = "gpt-4o";
+// === 模型定义 (来自提供的 JS 源码) ===
 
-// 完整的模型列表 (基于你的抓包)
-const ALLOWED_MODELS = [
-  "gpt-5.2", "gpt-5.1", "gpt-5", "gpt-5-mini", "gpt-5-nano",
-  "o4-mini", "o3-mini", "o1-mini", "o3", "o1",
-  "gpt-4", "gpt-4.1", "gpt-4o", "gpt-4o-mini", "o1-preview",
-  "gpt-4-turbo", "gpt-4-turbo-preview", "gpt-4-1106-preview",
-  "gpt-3.5-turbo", "claude-3-7-sonnet-latest", "claude-3-5-sonnet-20241022",
-  "claude-opus-4-5-20251101", "claude-3-7-sonnet-20250219", "claude-opus-4-5"
+// High-tier Services (OpenAI, Anthropic)
+const hS = [
+  {id:"ent-gpt-5.2",name:"GPT-5.2",llmVersion:"gpt-5.2"},
+  {id:"ent-gpt-5.1",name:"GPT-5.1",llmVersion:"gpt-5.1"},
+  {id:"ent-gpt-5",name:"GPT-5",llmVersion:"gpt-5"},
+  {id:"ent-gpt-5-mini",name:"GPT-5 Mini",llmVersion:"gpt-5-mini"},
+  {id:"ent-gpt-5-nano",name:"GPT-5 Nano",llmVersion:"gpt-5-nano"},
+  {id:"ent-o4-mini",name:"O4 Mini",llmVersion:"o4-mini"},
+  {id:"ent-o3",name:"O3",llmVersion:"o3"},
+  {id:"ent-o3-mini",name:"O3 Mini",llmVersion:"o3-mini"},
+  {id:"ent-o1",name:"O1",llmVersion:"o1"},
+  {id:"ent-o1-preview",name:"O1 Preview",llmVersion:"o1-preview"},
+  {id:"ent-o1-mini",name:"O1 Mini",llmVersion:"o1-mini"},
+  {id:"ent-gpt-4.1",name:"GPT-4.1",llmVersion:"gpt-4.1"},
+  {id:"ent-gpt-4o",name:"GPT-4o",llmVersion:"gpt-4o"},
+  {id:"ent-gpt-4o-2024-08-06",name:"GPT-4o (2024-08-06)",llmVersion:"gpt-4o-2024-08-06"},
+  {id:"ent-gpt-4o-mini",name:"GPT-4o Mini",llmVersion:"gpt-4o-mini"},
+  {id:"ent-gpt-4-turbo",name:"GPT-4 Turbo",llmVersion:"gpt-4-turbo"},
+  {id:"ent-gpt-4-turbo-preview",name:"GPT-4 Turbo Preview",llmVersion:"gpt-4-turbo-preview"},
+  {id:"ent-gpt-4",name:"GPT-4",llmVersion:"gpt-4"},
+  {id:"ent-gpt-4-1106-preview",name:"GPT-4 1106 Preview",llmVersion:"gpt-4-1106-preview"},
+  {id:"ent-gpt-4-vision-preview",name:"GPT-4 Vision Preview",llmVersion:"gpt-4-vision-preview"},
+  {id:"ent-gpt-4-0613",name:"GPT-4 (0613)",llmVersion:"gpt-4-0613"},
+  {id:"ent-gpt-4-0314",name:"GPT-4 (0314)",llmVersion:"gpt-4-0314"},
+  {id:"ent-gpt-4-32k-0314",name:"GPT-4 32K (0314)",llmVersion:"gpt-4-32k-0314"},
+  {id:"ent-gpt-3.5-turbo",name:"GPT-3.5 Turbo",llmVersion:"gpt-3.5-turbo"},
+  {id:"ent-gpt-3.5-turbo-0125",name:"GPT-3.5 Turbo (0125)",llmVersion:"gpt-3.5-turbo-0125"},
+  {id:"ent-gpt-3.5-turbo-1106",name:"GPT-3.5 Turbo (1106)",llmVersion:"gpt-3.5-turbo-1106"},
+  {id:"ent-gpt-3.5-turbo-16k",name:"GPT-3.5 Turbo 16K",llmVersion:"gpt-3.5-turbo-16k"},
+  {id:"ent-gpt-3.5-turbo-0613",name:"GPT-3.5 Turbo (0613)",llmVersion:"gpt-3.5-turbo-0613"},
+  {id:"ent-gpt-3.5-turbo-16k-0613",name:"GPT-3.5 Turbo 16K (0613)",llmVersion:"gpt-3.5-turbo-16k-0613"},
+  {id:"ent-gpt-3.5-turbo-0301",name:"GPT-3.5 Turbo (0301)",llmVersion:"gpt-3.5-turbo-0301"},
+  {id:"ent-claude-opus-4.5",name:"Claude Opus 4.5",llmVersion:"claude-opus-4-5"},
+  {id:"ent-claude-opus-4.5-20251101",name:"Claude Opus 4.5 (20251101)",llmVersion:"claude-opus-4-5-20251101"},
+  {id:"ent-claude-opus-4.1",name:"Claude Opus 4.1",llmVersion:"claude-opus-4-1"},
+  {id:"ent-claude-opus-4.1-20250805",name:"Claude Opus 4.1 (20250805)",llmVersion:"claude-opus-4-1-20250805"},
+  {id:"ent-claude-opus-4",name:"Claude Opus 4",llmVersion:"claude-opus-4-20250514"},
+  {id:"ent-claude-4-opus",name:"Claude 4 Opus",llmVersion:"claude-4-opus-20250514"},
+  {id:"ent-claude-sonnet-4.5",name:"Claude Sonnet 4.5",llmVersion:"claude-sonnet-4-5"},
+  {id:"ent-claude-sonnet-4.5-20250929",name:"Claude Sonnet 4.5 (20250929)",llmVersion:"claude-sonnet-4-5-20250929"},
+  {id:"ent-claude-sonnet-4",name:"Claude Sonnet 4",llmVersion:"claude-sonnet-4-20250514"},
+  {id:"ent-claude-4-sonnet",name:"Claude 4 Sonnet",llmVersion:"claude-4-sonnet-20250514"},
+  {id:"ent-claude-3.7-sonnet",name:"Claude 3.7 Sonnet",llmVersion:"claude-3-7-sonnet-latest"},
+  {id:"ent-claude-3.7-sonnet-20250219",name:"Claude 3.7 Sonnet (20250219)",llmVersion:"claude-3-7-sonnet-20250219"},
+  {id:"ent-claude-3.5-sonnet",name:"Claude 3.5 Sonnet",llmVersion:"claude-3-5-sonnet-latest"},
+  {id:"ent-claude-3.5-sonnet-20241022",name:"Claude 3.5 Sonnet (20241022)",llmVersion:"claude-3-5-sonnet-20241022"},
+  {id:"ent-claude-3.5-sonnet-20240620",name:"Claude 3.5 Sonnet (20240620)",llmVersion:"claude-3-5-sonnet-20240620"},
+  {id:"ent-claude-haiku-4.5",name:"Claude Haiku 4.5",llmVersion:"claude-haiku-4-5"},
+  {id:"ent-claude-haiku-4.5-20251001",name:"Claude Haiku 4.5 (20251001)",llmVersion:"claude-haiku-4-5-20251001"},
+  {id:"ent-claude-3.5-haiku",name:"Claude 3.5 Haiku",llmVersion:"claude-3-5-haiku-latest"},
+  {id:"ent-claude-3.5-haiku-20241022",name:"Claude 3.5 Haiku (20241022)",llmVersion:"claude-3-5-haiku-20241022"},
+  {id:"ent-claude-3-opus",name:"Claude 3 Opus",llmVersion:"claude-3-opus-latest"},
+  {id:"ent-claude-3-opus-20240229",name:"Claude 3 Opus (20240229)",llmVersion:"claude-3-opus-20240229"},
+  {id:"ent-claude-3-haiku",name:"Claude 3 Haiku",llmVersion:"claude-3-haiku-20240307"}
 ];
 
-// === 伪装核心逻辑 ===
-// 生成模拟 Chrome 137 (Linux) 的完整 Headers
+// Diverse Services (DeepSeek, Gemini, Meta, etc.)
+const dS = [
+  {id:"deepseek-prover-v2",name:"DeepSeek Prover V2"},
+  {id:"deepseek-r1",name:"DeepSeek R1"},
+  {id:"deepseek-v3",name:"DeepSeek V3"},
+  {id:"deepseek-v3.1",name:"DeepSeek V3.1"},
+  {id:"deepseek-v3.2-speciale",name:"DeepSeek V3.2 Speciale"},
+  {id:"gemini-3-flash-preview",name:"Gemini 3 Flash Preview"},
+  {id:"gemini-3-pro-preview",name:"Gemini 3 Pro Preview"},
+  {id:"gemini-2.5-pro",name:"Gemini 2.5 Pro"},
+  {id:"gemini-2.0-flash-001",name:"Gemini 2.0 Flash"},
+  {id:"gemini-2.0-flash-lite-001",name:"Gemini 2.0 Flash Lite"},
+  {id:"gemma-3n-e2b-it:free",name:"Gemma 3N E2B"},
+  {id:"kat-coder-pro",name:"KAT Coder Pro"},
+  {id:"llama-3.1-8b-instruct",name:"Llama 3.1 8B Instruct"},
+  {id:"llama-3.3-70b-instruct",name:"Llama 3.3 70B Instruct"},
+  {id:"minimax-01",name:"Minimax 01"},
+  {id:"minimax-m1",name:"Minimax M1"},
+  {id:"minimax-m2",name:"Minimax M2"},
+  {id:"devstral-medium",name:"Devstral Medium"},
+  {id:"devstral-2512:free",name:"Devstral 2512"},
+  {id:"magistral-medium-2506:thinking",name:"Magistral Medium Thinking"},
+  {id:"mistral-large-2512",name:"Mistral Large 2512"},
+  {id:"mistral-medium-3.1",name:"Mistral Medium 3.1"},
+  {id:"mistral-nemo",name:"Mistral Nemo"},
+  {id:"mistral-saba",name:"Mistral Saba"},
+  {id:"mistral-small-3.2-24b-instruct",name:"Mistral Small 3.2 24B"},
+  {id:"mixtral-8x7b-instruct",name:"Mixtral 8x7B Instruct"},
+  {id:"mixtral-8x22b-instruct",name:"Mixtral 8x22B Instruct"},
+  {id:"kimi-dev-72b",name:"Kimi Dev 72B"},
+  {id:"kimi-k2",name:"Kimi K2"},
+  {id:"kimi-k2-0905",name:"Kimi K2 0905"},
+  {id:"qwen3-14b",name:"Qwen 3 14B"},
+  {id:"qwen3-32b",name:"Qwen 3 32B"},
+  {id:"qwen3-coder",name:"Qwen 3 Coder"},
+  {id:"qwen3-235b-a22b",name:"Qwen 3 235B"},
+  {id:"grok-3",name:"Grok 3"},
+  {id:"grok-3-beta",name:"Grok 3 Beta"},
+  {id:"grok-3-mini",name:"Grok 3 Mini"},
+  {id:"grok-4",name:"Grok 4"},
+  {id:"grok-4-fast",name:"Grok 4 Fast"},
+  {id:"grok-4.1-fast",name:"Grok 4.1 Fast"},
+  {id:"grok-code-fast-1",name:"Grok Code Fast"},
+  {id:"glm-4-32b",name:"GLM-4 32B"},
+  {id:"glm-4.5",name:"GLM-4.5"},
+  {id:"glm-4.5-air",name:"GLM-4.5 Air"},
+  {id:"glm-4.5v",name:"GLM-4.5v"},
+  {id:"glm-4.6",name:"GLM-4.6"},
+  {id:"glm-4.7",name:"GLM-4.7"}
+];
+
+// 合并所有模型供查询
+const ALL_MODELS = [...hS, ...dS];
+
+// === 伪装与辅助函数 ===
+
 function getCamouflagedHeaders(token: string) {
   return {
-    // 基础伪装
-    "Host": "theoldllm.vercel.app", // 显式声明 Host
+    "Host": "theoldllm.vercel.app",
     "connection": "keep-alive",
     "pragma": "no-cache",
     "cache-control": "no-cache",
-    
-    // 浏览器指纹与安全 Header (关键!)
     "sec-ch-ua": '"Chromium";v="137", "Not/A)Brand";v="24"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Linux"',
-    "dnt": "1", // Do Not Track
+    "dnt": "1",
     "upgrade-insecure-requests": "1",
-    
-    // 用户代理
     "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-    
-    // 内容类型与接受格式
-    "accept": "*/*", // 接口通常接受 */*
+    "accept": "*/*",
     "content-type": "application/json",
-    
-    // Fetch 元数据 (防止 CORS 拦截的关键)
     "sec-fetch-site": "same-origin",
     "sec-fetch-mode": "cors",
     "sec-fetch-dest": "empty",
-    "sec-fetch-user": "?1",
-    
-    // 来源欺骗 (最关键!)
     "referer": "https://theoldllm.vercel.app/",
     "origin": "https://theoldllm.vercel.app",
-    
-    // 语言偏好
-    "accept-language": "zh-HK,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-TW;q=0.6",
-    
-    // 鉴权
+    "accept-language": "zh-HK,zh;q=0.9,en-US;q=0.8,en;q=0.7",
     "authorization": token,
-    
-    // 优先级
     "priority": "u=1, i"
   };
 }
 
+function convertMessagesToPrompt(messages: any[]): string {
+  if (!Array.isArray(messages)) return "";
+  return messages.map(m => `${m.role}: ${m.content}`).join("\n\n");
+}
+
+// 查找模型对应的后端描述名
+// 逻辑：如果模型在 hS 列表中，使用 llmVersion；否则使用 id
+function getBackendModelName(requestedId: string): string {
+  const modelObj = ALL_MODELS.find(m => m.id === requestedId);
+  if (!modelObj) return requestedId; // Fallback
+  // @ts-ignore
+  if (modelObj.llmVersion) return modelObj.llmVersion;
+  return modelObj.id;
+}
+
+// === 主服务逻辑 ===
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
-  
-  // CORS 处理 (允许所有来源访问你的 Deno 接口)
+
+  // CORS
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: {
@@ -79,62 +181,73 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 1. 获取模型列表
+  // 1. GET /v1/models
   if (url.pathname === "/v1/models") {
     return new Response(JSON.stringify({
       object: "list",
-      data: ALLOWED_MODELS.map(id => ({
-        id,
+      data: ALL_MODELS.map(m => ({
+        id: m.id,
         object: "model",
         created: Math.floor(Date.now() / 1000),
-        owned_by: "openai-proxy"
+        owned_by: "openai-proxy",
+        name: m.name // 额外字段，方便人类阅读
       }))
     }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
     });
   }
 
-  // 2. 聊天接口
+  // 2. POST /v1/chat/completions
   if (url.pathname === "/v1/chat/completions" && req.method === "POST") {
     try {
       const body = await req.json();
-      const model = body.model || DEFAULT_MODEL;
+      const userModel = body.model || DEFAULT_MODEL;
       const isStream = body.stream || false;
 
-      // 获取 Token
+      // 鉴权
       let authHeader = req.headers.get("Authorization");
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
         authHeader = FALLBACK_TOKEN;
       }
 
       // 获取伪装 Headers
-      const upstreamHeaders = getCamouflagedHeaders(authHeader);
+      const headers = getCamouflagedHeaders(authHeader);
 
-      // --- 步骤 A: 创建会话 (模拟真实前端行为) ---
-      const createSessionResp = await fetch(`${UPSTREAM_ORIGIN}/entp/chat/create-chat-session`, {
+      // --- Step 1: 映射模型名 ---
+      // 客户端传 'ent-gpt-5.2' -> 我们转成 'gpt-5.2' 传给后端
+      // 客户端传 'deepseek-r1' -> 我们传 'deepseek-r1'
+      const actualModelName = getBackendModelName(userModel);
+      
+      // --- Step 2: 创建 Session ---
+      // description 字段是路由的关键
+      const sessionPayload = {
+        persona_id: 154,
+        description: `Streaming chat session using ${actualModelName}`
+      };
+
+      const createResp = await fetch(`${UPSTREAM_ORIGIN}/entp/chat/create-chat-session`, {
         method: "POST",
-        headers: upstreamHeaders,
-        body: JSON.stringify({
-          persona_id: 154,
-          description: `Streaming chat session using ${model}`
-        })
+        headers: headers,
+        body: JSON.stringify(sessionPayload)
       });
 
-      if (!createSessionResp.ok) {
-        throw new Error(`Create Session Failed: ${createSessionResp.status}`);
+      if (!createResp.ok) {
+        const err = await createResp.text();
+        throw new Error(`Create Session Error (${createResp.status}): ${err}`);
       }
       
-      const sessionData = await createSessionResp.json();
-      const chatSessionId = sessionData.chat_session_id;
+      const sessionData = await createResp.json();
+      const sessionId = sessionData.chat_session_id;
+      if (!sessionId) throw new Error("No chat_session_id returned");
 
-      // --- 步骤 B: 发送消息 ---
+      // --- Step 3: 发送消息 ---
       const prompt = convertMessagesToPrompt(body.messages);
       
-      const sendMessageResp = await fetch(`${UPSTREAM_ORIGIN}/entp/chat/send-message`, {
+      const msgResp = await fetch(`${UPSTREAM_ORIGIN}/entp/chat/send-message`, {
         method: "POST",
-        headers: upstreamHeaders,
+        headers: headers,
         body: JSON.stringify({
-          chat_session_id: chatSessionId,
+          chat_session_id: sessionId,
           parent_message_id: null,
           message: prompt,
           file_descriptors: [],
@@ -143,13 +256,13 @@ Deno.serve(async (req) => {
         })
       });
 
-      if (!sendMessageResp.ok) {
-        throw new Error(`Send Message Failed: ${sendMessageResp.status}`);
+      if (!msgResp.ok) {
+        throw new Error(`Send Message Error (${msgResp.status})`);
       }
 
-      // --- 步骤 C: 处理流式响应 (NDJSON -> SSE) ---
-      const stream = sendMessageResp.body;
-      if (!stream) throw new Error("No upstream body");
+      // --- Step 4: 流式转换 ---
+      const stream = msgResp.body;
+      if (!stream) throw new Error("No upstream stream");
 
       const readable = new ReadableStream({
         async start(controller) {
@@ -170,28 +283,28 @@ Deno.serve(async (req) => {
               buffer += chunk;
               
               const lines = buffer.split("\n");
-              buffer = lines.pop() || ""; // 保留未完成的行
+              buffer = lines.pop() || ""; 
 
               for (const line of lines) {
                 if (!line.trim()) continue;
                 try {
                   const json = JSON.parse(line);
-                  // 提取内容: {"ind":1, "obj":{"type":"message_delta","content":"..."}}
+                  // 解析逻辑：{"ind":1, "obj":{"type":"message_delta","content":"..."}}
                   if (json?.obj?.type === "message_delta" && json.obj.content) {
                     const content = json.obj.content;
                     
                     if (isStream) {
-                      const data = JSON.stringify({
+                      const chunkData = {
                         id: chunkId,
                         object: "chat.completion.chunk",
                         created: created,
-                        model: model,
+                        model: userModel,
                         choices: [{ index: 0, delta: { content }, finish_reason: null }]
-                      });
-                      controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                      };
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunkData)}\n\n`));
                     }
                   }
-                } catch (e) { /* 忽略解析错误 */ }
+                } catch (e) { /* ignore json parse error */ }
               }
             }
             if (isStream) controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -203,7 +316,6 @@ Deno.serve(async (req) => {
         }
       });
 
-      // 返回处理后的流
       if (isStream) {
         return new Response(readable, {
           headers: {
@@ -214,7 +326,7 @@ Deno.serve(async (req) => {
           }
         });
       } else {
-        // 非流式兼容逻辑 (累积流内容)
+        // 非流式兼容
         const reader = readable.getReader();
         const decoder = new TextDecoder();
         let fullText = "";
@@ -222,12 +334,6 @@ Deno.serve(async (req) => {
             const {done, value} = await reader.read();
             if(done) break;
             const text = decoder.decode(value);
-            // 简单正则提取内容
-            const matches = text.matchAll(/"content":"(.*?)"/g); // 简易解析，实际建议复用上面的解析逻辑
-            // 由于上面已经转成了 SSE 格式，这里其实比较麻烦。
-            // 建议：如果使用非流式，客户端会等待。
-            // 这里的非流式实现为了简化，我们假设客户端都用 stream=true。
-            // 如果必须支持 stream=false，需在此处完整收集数据。
             const lines = text.split("\n");
             for(const l of lines) {
                 if(l.startsWith("data: ") && !l.includes("[DONE]")) {
@@ -242,21 +348,18 @@ Deno.serve(async (req) => {
             id: `chatcmpl-${crypto.randomUUID()}`,
             object: "chat.completion",
             created: Math.floor(Date.now() / 1000),
-            model: model,
+            model: userModel,
             choices: [{ index: 0, message: { role: "assistant", content: fullText }, finish_reason: "stop" }]
         }), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
       }
 
-    } catch (err: any) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ error: e.message }), { 
+        status: 500,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
+      });
     }
   }
 
   return new Response("Not Found", { status: 404 });
 });
-
-// 辅助：将 Messages 转换为 Prompt
-function convertMessagesToPrompt(messages: any[]): string {
-  if (!Array.isArray(messages)) return "";
-  return messages.map(m => `${m.role}: ${m.content}`).join("\n\n");
-}
