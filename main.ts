@@ -66,11 +66,6 @@ const hS = [
   {id:"ent-claude-3-opus",name:"Claude 3 Opus",llmVersion:"claude-3-opus-latest"},
   {id:"ent-claude-3-opus-20240229",name:"Claude 3 Opus (20240229)",llmVersion:"claude-3-opus-20240229"},
   {id:"ent-claude-3-haiku",name:"Claude 3 Haiku",llmVersion:"claude-3-haiku-20240307"}
-  {id:"gpt-4o-search-preview",name:"GPT-4o Search Preview",llmVersion:"gpt-4o-search-preview"},
-  {id:"gpt-4o-mini-search-preview", "name": "GPT-4o Mini Search Preview", "llmVersion": "gpt-4o-mini-search-preview"},
-  
-    
-  
 ];
 
 // 2. Chat Models (Diverse)
@@ -122,12 +117,6 @@ const dS = [
   {id:"glm-4.5v",name:"GLM-4.5v"},
   {id:"glm-4.6",name:"GLM-4.6"},
   {id:"glm-4.7",name:"GLM-4.7"}
-  {id:"gpt-oss-120b",name:"GPT-OSS-120B"}
-  {id:"gpt-oss-20b",name:"GPT-OSS-20B"}
-  {id:"sonar",name:"Sonar"}
-  {id:"sonar-pro",name:"sonar-pro"}
-  {id:"sonar-reasoning-pro",name:"Sonar-Reasoning-Pro"}
-  {id:"glm-4.7",name:"GLM-4.7"}
 ];
 
 // 3. Image Models
@@ -136,12 +125,6 @@ const imgModels = [
   {id:"sd-3.5-medium",name:"SD 3.5 Medium",provider:"Stability"},
   {id:"flux-dev",name:"Flux Dev",provider:"BFL"},
   {id:"flux-schnell",name:"Flux Schnell",provider:"BFL"}
-  {id:"gpt-image-1",name:"GPT-Image-1",provider:"BFL"}
-  {id:"flux-1.1-pro-ultra",name:"Flux-1.1-Pro-Ultra",provider:"BFL"}
-  {id:"imagen-4.0-generate-preview-06-06",name:"Imagen-4.0-Generate-Preview-06-06",provider:"BFL"}
-  {id:"flux-kontext-pro",name:"Flux-Kontext-pro",provider:"BFL"}
-  
-  
 ];
 
 // Image Sizes (Supported by upstream)
