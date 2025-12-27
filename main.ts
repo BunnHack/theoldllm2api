@@ -5,7 +5,7 @@
 
 // === 配置区域 ===
 const UPSTREAM_ORIGIN = "https://theoldllm.vercel.app";
-const DEFAULT_CHAT_MODEL = "ent-claude-opus-4.5";
+const DEFAULT_CHAT_MODEL = "";
 
 // 默认 Token (依然保留 chat 的 token 作为回退，如果请求 Image 失败，请在客户端 Header 传入 mnn-key)
 const FALLBACK_TOKEN = "Bearer ";
