@@ -8,7 +8,7 @@ const UPSTREAM_ORIGIN = "https://theoldllm.vercel.app";
 const DEFAULT_CHAT_MODEL = "ent-gpt-4o";
 
 // 默认 Token (依然保留 chat 的 token 作为回退，如果请求 Image 失败，请在客户端 Header 传入 mnn-key)
-const FALLBACK_TOKEN = "Bearer on_tenant_65566e34-de7f-490a-b88f-32ac8203b659.FlFtgizBOIHSKUrSYbSiT23u7VK3-AHqf64TtjN5v0qP-8AD8QJQ6RLxl0zG9Cgjj5R5ICdgNYFBz9JSv3OJcN3LiKtA6oJTj9CF_1nKjkZQ-InxkNfhEzktF52PXVvFxy7H1IR5JH9PnmMo467YfkAzf8z8vbRmW9WUQcqhBEMuxogPfqAIL1b60F8wGup7WChnADayGVAXyg0ihs4K-fXRyiR7OvXRii05DGX9XT7KtJvb24-XY_VEmWi8OO_o";
+const FALLBACK_TOKEN = "Bearer ";
 
 // === 模型定义 ===
 
